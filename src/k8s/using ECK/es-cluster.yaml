@@ -1,0 +1,122 @@
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch-demo
+  namespace: logging
+spec:
+  version: 8.7.1
+  nodeSets:
+    - name: elasticsearch-master
+      count: 3
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch-master
+              image: docker.elastic.co/elasticsearch/elasticsearch:8.7.1
+              env:
+                - name: ES_JAVA_OPTS #  requied only for and before ES 7.11
+                  value: -Xms2g -Xmx2g
+                - name: READINESS_PROBE_TIMEOUT
+                  value: "10"
+              resources:
+                requests:
+                  memory: 2Gi
+                  cpu: 500m
+                limits:
+                  memory: 4Gi
+                  cpu: 2000m
+          initContainers:
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: elk-azurefile-sc
+            resources:
+              requests:
+                storage: 3Gi
+      config:
+        node.roles: ["master"]
+        xpack.ml.enabled: true
+        node.store.allow_mmap: false
+    - name: elasticsearch-data
+      count: 2
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch-data
+              image: docker.elastic.co/elasticsearch/elasticsearch:8.7.1
+              env:
+                - name: ES_JAVA_OPTS #  requied only for and before ES 7.11
+                  value: -Xms2g -Xmx2g
+                - name: READINESS_PROBE_TIMEOUT
+                  value: "10"
+              resources:
+                requests:
+                  memory: 2Gi
+                  cpu: 500m
+                limits:
+                  memory: 4Gi
+                  cpu: 2000m
+          initContainers:
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: elk-azurefile-sc
+            resources:
+              requests:
+                storage: 10Gi
+      config:
+        node.roles: ["data"]
+        xpack.ml.enabled: true
+        node.store.allow_mmap: false
+    - name: elasticsearch-client
+      count: 2
+      podTemplate:
+        spec:
+          containers:
+            - name: elasticsearch-client
+              image: docker.elastic.co/elasticsearch/elasticsearch:8.7.1
+              env:
+                - name: ES_JAVA_OPTS #  requied only for and before ES 7.11
+                  value: -Xms2g -Xmx2g
+                - name: READINESS_PROBE_TIMEOUT
+                  value: "10"
+              resources:
+                requests:
+                  memory: 2Gi
+                  cpu: 500m
+                limits:
+                  memory: 4Gi
+                  cpu: 2000m
+          initContainers:
+            - name: sysctl
+              securityContext:
+                privileged: true
+                runAsUser: 0
+              command: ["sh", "-c", "sysctl -w vm.max_map_count=262144"]
+      volumeClaimTemplates:
+        - metadata:
+            name: elasticsearch-data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: elk-azurefile-sc
+            resources:
+              requests:
+                storage: 2Gi
+      config:
+        node.roles: []
+        xpack.ml.enabled: true
+        node.store.allow_mmap: false

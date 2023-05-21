@@ -1,0 +1,20 @@
+kubectl create -f https://download.elastic.co/downloads/eck/2.7.0/crds.yaml
+
+kubectl apply -f https://download.elastic.co/downloads/eck/2.7.0/operator.yaml
+
+PASSWORD=$(kubectl get secret elasticsearch-demo-es-elastic-user -o=jsonpath='{.data.elastic}' | base64 --decode)
+echo $PASSWORD
+
+or
+
+kubectl get secrets elasticsearch-demo-es-elastic-user -n logging -o=jsonpath='{.data.elastic}' | base64 --decode
+
+kubectl apply -f persistence-volume.yaml 
+
+kubectl create ns logging
+
+kubectl apply -f es-cluster.yaml 
+
+
+//To clean delete the elasticsearch resources
+kubectl delete elasticsearch elasticsearch-demo -n logging

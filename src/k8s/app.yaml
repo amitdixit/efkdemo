@@ -1,0 +1,160 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: logging
+  name: fluentbit-config
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Log_Level     info
+        Parsers_File  parsers.conf
+        Daemon        off
+        
+    @INCLUDE all_container_input.conf
+    @INCLUDE output-fleuntd-forward.conf
+  all_container_input.conf: |
+    [INPUT]
+        Name              tail
+        Tag               <container_name>-<namespace_name>
+        Tag_Regex         (?<pod_name>[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)_(?<namespace_name>[^_]+)_(?<container_name>.+)-
+        Parser            docker
+        Path              /var/log/containers/*
+        DB                /var/log/flb_kube.db
+        Mem_Buf_Limit     5MB
+        Skip_Long_Lines   On
+        Refresh_Interval  5
+        Docker_Mode       On
+  output-fleuntd-forward.conf: |
+    [OUTPUT]
+        Name          forward
+        Match         *
+        Host          ${FLUENTD_HOST}
+        Port          ${FLUENTD_PORT}
+        Retry_Limit   False
+  parsers.conf: |
+    [PARSER]
+        Name        json
+        Format      json
+        Time_Key    time
+        Time_Format %d/%b/%Y:%H:%M:%S %z
+    [PARSER]
+        Name        docker
+        Format      json
+        #Time_Key   time
+        Time_Key    @timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   Off # on
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appsettings
+  namespace: logging
+data:
+  appsettings.json: |-
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft": "Warning",
+          "Microsoft.Hosting.Lifetime": "Information"
+        }
+      },
+      "AllowedHosts": "*",
+      "ConnectionStrings": {
+        "StudentAppContext": "Server=(localdb)\\mssqllocaldb;Database=StudentAppContextDev;Trusted_Connection=True;MultipleActiveResultSets=true",
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: student-app
+  namespace: logging
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: student-app
+  template:
+    metadata:
+      labels:
+        app: student-app
+    spec:
+      containers:
+        - name: student-app
+          image: demoacrakd1.azurecr.io/efkdemo:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              name: student-app
+            - containerPort: 443
+              name: student-app-tls
+            - containerPort: 5000
+              name: student-app-lcl
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "250m"
+            limits:
+              memory: "4Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: appsettings-volume
+              mountPath: /app/appsettings.json
+              subPath: appsettings.json
+        - name: fluentbit
+          image: fluent/fluent-bit:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: FLUENTD_HOST
+              value: fluentd-service.logging.svc.cluster.local
+            - name: FLUENTD_PORT
+              value: "24224"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          volumeMounts:
+            - name: varlog
+              mountPath: /var/log
+            - name: fluentbit-config
+              mountPath: /fluent-bit/etc/
+      volumes:
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: fluentbit-config
+          configMap:
+            name: fluentbit-config
+        - name: appsettings-volume
+          configMap:
+            name: appsettings
+      imagePullSecrets:
+        - name: app-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: logging
+  name: student-appservice
+spec:
+  selector:
+    app: student-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443
+    - name: tcp
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+  type: LoadBalancer
