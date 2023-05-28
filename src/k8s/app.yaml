@@ -64,7 +64,13 @@ data:
       "AllowedHosts": "*",
       "ConnectionStrings": {
         "StudentAppContext": "Server=(localdb)\\mssqllocaldb;Database=StudentAppContextDev;Trusted_Connection=True;MultipleActiveResultSets=true",
+      },
+       "ElasticApm": {
+        "ServiceName": "student-app",
+        "ServerUrl": "http://apm-server.logging.svc.cluster.local:8200",
+        "SecretToken": ""
       }
+
     }
 ---
 apiVersion: apps/v1

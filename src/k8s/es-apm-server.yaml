@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apm-server-config
+  namespace: logging
+  labels:
+    k8s-app: apm-server
+data:
+  apm-server.yml: |-
+    apm-server:
+      host: "0.0.0.0:8200"
+      frontend:
+        enabled: false
+    setup.template.settings:
+      index:
+        number_of_shards: 1
+        codec: best_compression
+    setup.dashboards.enabled: true
+    setup.kibana:
+      host: "KIBANA_URL"
+    output.elasticsearch:
+      hosts: ["https://es-client.logging.svc.cluster.local:9200"]
+      username: "elastic" 
+      password: "ELASTIC_PASSWORD"
+      ssl.verification_mode: none
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: logging
+  name: apm-server
+spec:
+  selector:
+    matchLabels:
+      app: apm-server
+  replicas: 1
+  template:
+    metadata:
+      name: apm-server
+      labels:
+        app: apm-server
+    spec:
+      containers:
+        - name: apm-server
+          image: elastic/apm-server:8.7.1
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - name: apm-server
+              containerPort: 8200
+          resources:
+            limits:
+              cpu: 700m
+              memory: "4Gi"
+            requests:
+              cpu: 300m
+              memory: "2Gi"
+          volumeMounts:
+            - name: apm-server-config
+              mountPath: /usr/share/apm-server/apm-server.yml
+              readOnly: true
+              subPath: apm-server.yml
+      volumes:
+        - name: apm-server-config
+          configMap:
+            name: apm-server-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: logging
+  name: apm-server
+spec:
+  type: ClusterIP
+  selector:
+    app: apm-server
+  ports:
+    - name: apm-server
+      protocol: TCP
+      port: 8200
+      targetPort: 8200

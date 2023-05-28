@@ -17,8 +17,19 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Privacy()
+    public async Task<IActionResult> Privacy()
     {
+        using (var client = new HttpClient())
+        {
+            var response = await client.GetAsync("https://jsonplaceholder.typicode.com/posts");
+            response.EnsureSuccessStatusCode();
+            var responseBody = await response.Content.ReadAsStringAsync();
+            // Above three lines can be replaced with new helper method below
+            // string responseBody = await client.GetStringAsync(uri);
+
+            _logger.LogInformation(responseBody);
+        }
+
         return View();
     }
 
